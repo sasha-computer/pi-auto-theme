@@ -1,0 +1,11 @@
+{
+	"name": "pi-themes",
+	"version": "1.0.0",
+	"description": "Everforest, Catppuccin, and High Contrast themes for pi with auto dark/light switching and Ghostty sync",
+	"keywords": ["pi-package"],
+	"license": "MIT",
+	"pi": {
+		"extensions": ["extensions"],
+		"themes": ["themes"]
+	}
+}
