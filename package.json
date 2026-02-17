@@ -1,5 +1,5 @@
 {
-	"name": "pi-themes",
+	"name": "pi-ghostty-themes",
 	"version": "1.0.0",
 	"description": "Everforest, Catppuccin, and High Contrast themes for pi with auto dark/light switching and Ghostty sync",
 	"keywords": ["pi-package"],
