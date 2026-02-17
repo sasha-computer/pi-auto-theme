@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/hero.png" alt="pi-themes" width="200" />
+  <img src="assets/hero.png" alt="pi-ghostty-sync" width="200" />
 </p>
 
-<h1 align="center">pi-themes</h1>
+<h1 align="center">pi-ghostty-sync</h1>
 
 <p align="center">
   Matching dark/light themes for pi and Ghostty that follow your system appearance.
@@ -15,16 +15,16 @@
   <a href="#setup">Setup</a>
 </p>
 
-## Why pi-themes?
+## Why pi-ghostty-sync?
 
 Your terminal and your coding agent should look like they belong together. And when you flip your Mac to dark mode at night, both should follow without you touching anything.
 
-pi-themes ships three matched palettes (Catppuccin, Everforest, High Contrast) where pi's TUI and Ghostty's terminal colors use the exact same hex values. The extension polls macOS appearance and switches automatically.
+pi-ghostty-sync ships three matched palettes (Catppuccin, Everforest, High Contrast) where pi's TUI and Ghostty's terminal colors use the exact same hex values. The extension polls macOS appearance and switches automatically.
 
 ## How does it work?
 
 <p align="center">
-  <img src="demo.gif" alt="pi-themes demo" width="800" />
+  <img src="demo.gif" alt="pi-ghostty-sync demo" width="800" />
 </p>
 
 - **Three theme pairs**, each with a dark and light variant
@@ -41,13 +41,13 @@ pi-themes ships three matched palettes (Catppuccin, Everforest, High Contrast) w
 ## Install
 
 ```bash
-pi install git:github.com/sasha-computer/pi-themes
+pi install git:github.com/sasha-computer/pi-ghostty-sync
 ```
 
 Or try it first:
 
 ```bash
-pi -e git:github.com/sasha-computer/pi-themes
+pi -e git:github.com/sasha-computer/pi-ghostty-sync
 ```
 
 ## Setup
