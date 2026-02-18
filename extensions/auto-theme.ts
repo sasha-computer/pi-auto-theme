@@ -21,7 +21,7 @@
  */
 
 import { exec } from "node:child_process";
-import { readFile, writeFile, mkdir, access } from "node:fs/promises";
+import { readFile, writeFile, mkdir, access, copyFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -32,7 +32,13 @@ const execAsync = promisify(exec);
 const HOME = process.env.HOME ?? "";
 const GHOSTTY_CONFIG = `${HOME}/.config/ghostty/config`;
 const GHOSTTY_THEMES_DIR = `${HOME}/.config/ghostty/themes`;
+const TMUX_THEMES_DIR = `${HOME}/.config/tmux/themes`;
+const TMUX_THEME_FILE = `${HOME}/.config/tmux/theme.conf`;
 const PAIR_STATE_FILE = `${HOME}/.pi/agent/theme-pair-state.json`;
+
+// Resolved path to bundled tmux themes (sibling of extensions/)
+const __filename = fileURLToPath(import.meta.url);
+const BUNDLED_TMUX_THEMES = resolve(dirname(__filename), "../tmux-themes");
 
 interface ThemePair {
 	dark: string;
@@ -239,6 +245,41 @@ async function installGhosttyThemes(): Promise<void> {
 		if (!(await exists(path))) {
 			await writeFile(path, content, "utf-8");
 		}
+	}
+}
+
+async function installTmuxThemes(): Promise<void> {
+	const themeNames = [
+		"catppuccin-mocha",
+		"catppuccin-latte",
+		"everforest-dark",
+		"everforest-light",
+		"high-contrast-dark",
+		"high-contrast-light",
+	];
+
+	await mkdir(TMUX_THEMES_DIR, { recursive: true });
+
+	for (const name of themeNames) {
+		const src = `${BUNDLED_TMUX_THEMES}/${name}.conf`;
+		const dst = `${TMUX_THEMES_DIR}/${name}.conf`;
+		try {
+			await copyFile(src, dst);
+		} catch {
+			// Source file missing — skip silently
+		}
+	}
+}
+
+async function syncTmux(themeName: string): Promise<void> {
+	const src = `${TMUX_THEMES_DIR}/${themeName}.conf`;
+	try {
+		const content = await readFile(src, "utf-8");
+		await writeFile(TMUX_THEME_FILE, content, "utf-8");
+		// Apply to running tmux server if one exists
+		await execAsync("tmux source-file ~/.config/tmux/theme.conf").catch(() => {});
+	} catch {
+		// Theme file missing or tmux not installed — skip silently
 	}
 }
 
