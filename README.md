@@ -23,10 +23,6 @@ pi-auto-theme ships three matched palettes (Catppuccin, Everforest, High Contras
 
 ## How does it work?
 
-<p align="center">
-  <img src="demo.gif" alt="pi-auto-theme demo" width="800" />
-</p>
-
 - **Three theme pairs**, each with a dark and light variant
 - **Auto dark/light switching** by polling macOS system appearance every 2 seconds
 - **Ghostty sync** rewrites the Ghostty config and triggers a reload when you change pairs
