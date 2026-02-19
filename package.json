@@ -4,8 +4,12 @@
 	"description": "Auto-switching themes for pi, Ghostty, and tmux — Catppuccin, Everforest, High Contrast",
 	"keywords": ["pi-package"],
 	"license": "MIT",
+	"type": "module",
 	"pi": {
 		"extensions": ["extensions"],
 		"themes": ["themes"]
+	},
+	"devDependencies": {
+		"@types/bun": "latest"
 	}
 }
