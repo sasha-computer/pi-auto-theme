@@ -426,6 +426,13 @@ export default function (pi: ExtensionAPI) {
 			currentAppliedTheme = piTheme;
 			ctx.ui.setTheme(piTheme);
 			await syncTmux(tmuxTheme);
+			// Keep Ghostty in sync: when dark mode changes in auto mode, ensure Ghostty
+			// is using the pair format (light:X,dark:Y) so it follows the system too.
+			// Without this, a leftover single-theme config from a previous pinned session
+			// would cause pi and Ghostty to get out of sync when the system mode changes.
+			if (!pinnedTheme) {
+				await updateGhosttyTheme(THEME_PAIRS[currentPair]);
+			}
 		}
 	}
 
@@ -437,6 +444,16 @@ export default function (pi: ExtensionAPI) {
 		if (saved) {
 			currentPair = saved.pair;
 			pinnedTheme = saved.pinned;
+		}
+
+		// Always sync Ghostty on startup so a leftover single-theme config from a
+		// previous pinned session doesn't cause pi and Ghostty to diverge when the
+		// system appearance changes.
+		if (pinnedTheme) {
+			const ghosttyTheme = PI_TO_GHOSTTY[pinnedTheme];
+			if (ghosttyTheme) await updateGhosttyThemePinned(ghosttyTheme);
+		} else {
+			await updateGhosttyTheme(THEME_PAIRS[currentPair]);
 		}
 
 		await applyTheme(ctx);
