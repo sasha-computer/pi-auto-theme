@@ -1,6 +1,6 @@
 /**
  * Auto-switches pi theme based on macOS system appearance (dark/light mode),
- * and syncs the Ghostty terminal theme to match.
+ * and syncs Ghostty and tmux to match.
  *
  * Supports five theme pairs:
  *   - catppuccin (default): catppuccin-mocha / catppuccin-latte
@@ -10,12 +10,12 @@
  *   - high-contrast: high-contrast-dark / high-contrast-light
  *
  * Commands:
- *   /theme-pair <name>  — Switch theme pair (catppuccin, everforest, high-contrast)
- *   /theme-pair         — Show current theme pair
+ *   /theme          -- Open interactive theme picker with live preview
+ *   /theme <name>   -- Switch theme pair directly
  *
  * Polls macOS appearance every 2 seconds and switches pi theme automatically.
  * Ghostty uses its native light:/dark: syntax with window-theme = auto, so it
- * auto-switches on its own — we just update which themes are configured when
+ * auto-switches on its own -- we just update which themes are configured when
  * the pair changes.
  *
  * On first run, installs matching Ghostty themes to ~/.config/ghostty/themes/
@@ -28,6 +28,16 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { DynamicBorder } from "@mariozechner/pi-coding-agent";
+import { Container, type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
+import {
+	THEME_PAIRS,
+	PAIR_NAMES,
+	resolveTheme,
+	rewriteGhosttyConfig,
+	validatePairName,
+	type ThemePair,
+} from "./theme-logic";
 
 const execAsync = promisify(exec);
 
@@ -44,49 +54,7 @@ const BUNDLED_TMUX_THEMES = resolve(dirname(__filename), "../tmux-themes");
 const BUNDLED_PI_THEMES = resolve(dirname(__filename), "../themes");
 const PI_THEMES_DIR = `${HOME}/.pi/agent/themes`;
 
-interface ThemePair {
-	dark: string;
-	light: string;
-	ghosttyDark: string;
-	ghosttyLight: string;
-}
-
-const THEME_PAIRS: Record<string, ThemePair> = {
-	catppuccin: {
-		dark: "catppuccin-mocha",
-		light: "catppuccin-latte",
-		ghosttyDark: "Catppuccin Mocha Sync",
-		ghosttyLight: "Catppuccin Latte Sync",
-	},
-	"catppuccin-macchiato": {
-		dark: "catppuccin-macchiato",
-		light: "catppuccin-latte",
-		ghosttyDark: "Catppuccin Macchiato Sync",
-		ghosttyLight: "Catppuccin Latte Sync",
-	},
-	"catppuccin-frappe": {
-		dark: "catppuccin-frappe",
-		light: "catppuccin-latte",
-		ghosttyDark: "Catppuccin Frappe Sync",
-		ghosttyLight: "Catppuccin Latte Sync",
-	},
-	everforest: {
-		dark: "everforest-dark",
-		light: "everforest-light",
-		ghosttyDark: "Everforest Dark",
-		ghosttyLight: "Everforest Light",
-	},
-	"high-contrast": {
-		dark: "high-contrast-dark",
-		light: "high-contrast-light",
-		ghosttyDark: "High Contrast Dark",
-		ghosttyLight: "High Contrast Light",
-	},
-};
-
-const PAIR_NAMES = Object.keys(THEME_PAIRS);
-
-// Ghostty theme definitions — same hex values as the pi themes
+// Ghostty theme definitions -- same hex values as the pi themes
 const GHOSTTY_THEMES: Record<string, string> = {
 	"Catppuccin Mocha Sync": `palette = 0=#45475a
 palette = 1=#f38ba8
@@ -298,7 +266,7 @@ async function persistPair(pair: string): Promise<void> {
 }
 
 async function installGhosttyThemes(): Promise<void> {
-	if (!(await exists(`${HOME}/.config/ghostty`))) return; // Ghostty not installed
+	if (!(await exists(`${HOME}/.config/ghostty`))) return;
 
 	await mkdir(GHOSTTY_THEMES_DIR, { recursive: true });
 
@@ -330,7 +298,7 @@ async function installTmuxThemes(): Promise<void> {
 		try {
 			await copyFile(src, dst);
 		} catch {
-			// Source file missing — skip silently
+			// Source file missing -- skip silently
 		}
 	}
 }
@@ -355,7 +323,7 @@ async function syncPiThemes(): Promise<void> {
 		try {
 			await copyFile(src, dst);
 		} catch {
-			// Source file missing — skip silently
+			// Source file missing -- skip silently
 		}
 	}
 }
@@ -365,10 +333,9 @@ async function syncTmux(themeName: string): Promise<void> {
 	try {
 		const content = await readFile(src, "utf-8");
 		await writeFile(TMUX_THEME_FILE, content, "utf-8");
-		// Apply to running tmux server if one exists
 		await execAsync("tmux source-file ~/.config/tmux/theme.conf").catch(() => {});
 	} catch {
-		// Theme file missing or tmux not installed — skip silently
+		// Theme file missing or tmux not installed -- skip silently
 	}
 }
 
@@ -386,24 +353,29 @@ async function isDarkMode(): Promise<boolean> {
 async function updateGhosttyTheme(pair: ThemePair): Promise<void> {
 	try {
 		const config = await readFile(GHOSTTY_CONFIG, "utf-8");
-		const newThemeLine = `theme = light:${pair.ghosttyLight},dark:${pair.ghosttyDark}`;
+		const updated = rewriteGhosttyConfig(config, pair);
 
-		// Replace existing theme line (handles both `theme = X` and `theme = light:X,dark:Y`)
-		const updated = config.replace(/^theme\s*=\s*.+$/m, newThemeLine);
-
-		if (updated === config) return; // no change needed
+		if (updated === config) return;
 
 		await writeFile(GHOSTTY_CONFIG, updated, "utf-8");
 
-		// Trigger Ghostty config reload via AppleScript menu click
 		await execAsync(
 			'osascript -e \'tell application "System Events" to tell process "Ghostty" to click menu item "Reload Configuration" of menu "Ghostty" of menu bar item "Ghostty" of menu bar 1\'',
-		).catch(() => {
-			// Ghostty might not be running or accessible — that's fine
-		});
+		).catch(() => {});
 	} catch {
-		// Config file missing or not writable — silently skip
+		// Config file missing or not writable -- silently skip
 	}
+}
+
+async function applyFullTheme(
+	pairName: string,
+	ctx: { ui: { setTheme: (name: string) => unknown } },
+): Promise<void> {
+	const dark = await isDarkMode();
+	const resolved = resolveTheme(pairName, dark);
+	ctx.ui.setTheme(resolved.piTheme);
+	await updateGhosttyTheme(THEME_PAIRS[pairName]);
+	await syncTmux(resolved.tmuxTheme);
 }
 
 export default function (pi: ExtensionAPI) {
@@ -413,22 +385,20 @@ export default function (pi: ExtensionAPI) {
 
 	async function applyTheme(ctx: { ui: { setTheme: (name: string) => unknown } }) {
 		const dark = await isDarkMode();
-		const pair = THEME_PAIRS[currentPair];
-		const themeName = dark ? pair.dark : pair.light;
+		const resolved = resolveTheme(currentPair, dark);
 
-		if (themeName !== currentAppliedTheme) {
-			currentAppliedTheme = themeName;
-			ctx.ui.setTheme(themeName);
+		if (resolved.piTheme !== currentAppliedTheme) {
+			currentAppliedTheme = resolved.piTheme;
+			ctx.ui.setTheme(resolved.piTheme);
+			await syncTmux(resolved.tmuxTheme);
 		}
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
-		// Sync bundled themes to installed locations (always overwrites to stay current)
 		await syncPiThemes();
 		await installGhosttyThemes();
 		await installTmuxThemes();
 
-		// Restore persisted pair from state file
 		const savedPair = await loadPersistedPair();
 		if (savedPair) {
 			currentPair = savedPair;
@@ -448,8 +418,8 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	pi.registerCommand("theme-pair", {
-		description: "Switch theme pair (catppuccin, catppuccin-macchiato, catppuccin-frappe, everforest, high-contrast)",
+	pi.registerCommand("theme", {
+		description: "Switch theme (interactive picker or /theme <name>)",
 		getArgumentCompletions: (prefix: string) => {
 			const items = PAIR_NAMES.map((name) => ({ value: name, label: name }));
 			const filtered = items.filter((i) => i.value.startsWith(prefix));
@@ -458,26 +428,92 @@ export default function (pi: ExtensionAPI) {
 		handler: async (args, ctx) => {
 			const name = args?.trim();
 
-			if (!name) {
-				const mode = (await isDarkMode()) ? "dark" : "light";
-				const active = mode === "dark" ? THEME_PAIRS[currentPair].dark : THEME_PAIRS[currentPair].light;
-				ctx.ui.notify(`Theme pair: ${currentPair} (${active}, ${mode} mode)`, "info");
+			// Direct switch: /theme <name>
+			if (name) {
+				const result = validatePairName(name);
+				if (!result.ok) {
+					ctx.ui.notify(result.error, "error");
+					return;
+				}
+
+				currentPair = name;
+				currentAppliedTheme = "";
+				await persistPair(currentPair);
+				await applyFullTheme(name, ctx);
+				ctx.ui.notify(`Theme: ${name}`, "info");
 				return;
 			}
 
-			if (!THEME_PAIRS[name]) {
-				ctx.ui.notify(`Unknown pair "${name}". Available: ${PAIR_NAMES.join(", ")}`, "error");
-				return;
+			// Interactive picker with live preview
+			const previousPair = currentPair;
+
+			const items: SelectItem[] = PAIR_NAMES.map((pairName) => {
+				const pair = THEME_PAIRS[pairName];
+				return {
+					value: pairName,
+					label: pairName,
+					description: `${pair.dark} / ${pair.light}`,
+				};
+			});
+
+			// Pre-select the current pair
+			const currentIndex = PAIR_NAMES.indexOf(currentPair);
+
+			const selected = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
+				const container = new Container();
+
+				container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+				container.addChild(new Text(theme.fg("accent", theme.bold("Theme")), 1, 0));
+
+				const selectList = new SelectList(items, Math.min(items.length, 10), {
+					selectedPrefix: (t) => theme.fg("accent", t),
+					selectedText: (t) => theme.fg("accent", t),
+					description: (t) => theme.fg("muted", t),
+					scrollInfo: (t) => theme.fg("dim", t),
+					noMatch: (t) => theme.fg("warning", t),
+				});
+
+				if (currentIndex >= 0) {
+					selectList.setSelectedIndex(currentIndex);
+				}
+
+				// Live preview on highlight change
+				selectList.onSelectionChange = (item) => {
+					applyFullTheme(item.value, ctx);
+				};
+
+				selectList.onSelect = (item) => done(item.value);
+				selectList.onCancel = () => done(null);
+				container.addChild(selectList);
+
+				container.addChild(
+					new Text(theme.fg("dim", "↑↓ navigate • enter select • esc cancel"), 1, 0),
+				);
+				container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+
+				return {
+					render: (w) => container.render(w),
+					invalidate: () => container.invalidate(),
+					handleInput: (data) => {
+						selectList.handleInput(data);
+						tui.requestRender();
+					},
+				};
+			});
+
+			if (selected) {
+				// Confirmed -- persist
+				currentPair = selected;
+				currentAppliedTheme = "";
+				await persistPair(currentPair);
+				await applyFullTheme(selected, ctx);
+				ctx.ui.notify(`Theme: ${selected}`, "info");
+			} else {
+				// Cancelled -- revert to previous
+				currentPair = previousPair;
+				currentAppliedTheme = "";
+				await applyFullTheme(previousPair, ctx);
 			}
-
-			currentPair = name;
-			currentAppliedTheme = ""; // Force re-apply
-			await persistPair(currentPair);
-
-			await applyTheme(ctx);
-			await updateGhosttyTheme(THEME_PAIRS[name]);
-
-			ctx.ui.notify(`Theme pair: ${name} (pi + Ghostty synced)`, "info");
 		},
 	});
 }
