@@ -340,16 +340,20 @@ async function updateGhosttyTheme(pair: ThemePair): Promise<void> {
 	}
 }
 
-// Preview only the pi theme colour while navigating the picker -- never
+// Preview the dark variant of a pair while navigating the picker -- never
 // writes to Ghostty config or tmux, avoiding file corruption from rapid
 // concurrent writes during highlight changes.
-async function previewPiTheme(
+//
+// Always shows the dark variant so all Catppuccin flavours are visually
+// distinct in the picker (all share catppuccin-latte as their light theme,
+// making them indistinguishable when the system is in light mode).
+function previewPiTheme(
 	pairName: string,
 	ctx: { ui: { setTheme: (name: string) => unknown } },
-): Promise<void> {
-	const dark = await isDarkMode();
-	const resolved = resolveTheme(pairName, dark);
-	ctx.ui.setTheme(resolved.piTheme);
+): void {
+	const pair = THEME_PAIRS[pairName];
+	if (!pair) return;
+	ctx.ui.setTheme(pair.dark);
 }
 
 async function applyFullTheme(
