@@ -2,8 +2,10 @@
  * Auto-switches pi theme based on macOS system appearance (dark/light mode),
  * and syncs the Ghostty terminal theme to match.
  *
- * Supports three theme pairs:
+ * Supports five theme pairs:
  *   - catppuccin (default): catppuccin-mocha / catppuccin-latte
+ *   - catppuccin-macchiato: catppuccin-macchiato / catppuccin-latte
+ *   - catppuccin-frappe: catppuccin-frappe / catppuccin-latte
  *   - everforest: everforest-dark / everforest-light
  *   - high-contrast: high-contrast-dark / high-contrast-light
  *
@@ -52,6 +54,18 @@ const THEME_PAIRS: Record<string, ThemePair> = {
 		dark: "catppuccin-mocha",
 		light: "catppuccin-latte",
 		ghosttyDark: "Catppuccin Mocha Sync",
+		ghosttyLight: "Catppuccin Latte Sync",
+	},
+	"catppuccin-macchiato": {
+		dark: "catppuccin-macchiato",
+		light: "catppuccin-latte",
+		ghosttyDark: "Catppuccin Macchiato Sync",
+		ghosttyLight: "Catppuccin Latte Sync",
+	},
+	"catppuccin-frappe": {
+		dark: "catppuccin-frappe",
+		light: "catppuccin-latte",
+		ghosttyDark: "Catppuccin Frappe Sync",
 		ghosttyLight: "Catppuccin Latte Sync",
 	},
 	everforest: {
@@ -117,6 +131,52 @@ cursor-color = #dc8a78
 cursor-text = #eff1f5
 selection-background = #acb0be
 selection-foreground = #4c4f69
+`,
+	"Catppuccin Macchiato Sync": `palette = 0=#45475a
+palette = 1=#f38ba8
+palette = 2=#a6e3a1
+palette = 3=#f9e2af
+palette = 4=#89b4fa
+palette = 5=#c6a1ed
+palette = 6=#8bd5ca
+palette = 7=#cdd6f4
+palette = 8=#6c7086
+palette = 9=#f38ba8
+palette = 10=#a6e3a1
+palette = 11=#f9e2af
+palette = 12=#89b4fa
+palette = 13=#c6a1ed
+palette = 14=#8bd5ca
+palette = 15=#b4befe
+background = #24273a
+foreground = #cdd6f4
+cursor-color = #f4dbd6
+cursor-text = #24273a
+selection-background = #45475a
+selection-foreground = #cdd6f4
+`,
+	"Catppuccin Frappe Sync": `palette = 0=#737994
+palette = 1=#e78284
+palette = 2=#a6d189
+palette = 3=#eed49f
+palette = 4=#8caaee
+palette = 5=#ca9ee6
+palette = 6=#8dd5c1
+palette = 7=#c6d0f5
+palette = 8=#949cbb
+palette = 9=#e78284
+palette = 10=#a6d189
+palette = 11=#eed49f
+palette = 12=#8caaee
+palette = 13=#ca9ee6
+palette = 14=#8dd5c1
+palette = 15=#babbf1
+background = #585b70
+foreground = #c6d0f5
+cursor-color = #f2d8cf
+cursor-text = #585b70
+selection-background = #737994
+selection-foreground = #c6d0f5
 `,
 	"Everforest Dark": `palette = 0=#7a8478
 palette = 1=#e67e80
@@ -252,6 +312,8 @@ async function installTmuxThemes(): Promise<void> {
 	const themeNames = [
 		"catppuccin-mocha",
 		"catppuccin-latte",
+		"catppuccin-macchiato",
+		"catppuccin-frappe",
 		"everforest-dark",
 		"everforest-light",
 		"high-contrast-dark",
@@ -358,7 +420,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("theme-pair", {
-		description: "Switch theme pair (catppuccin, everforest, high-contrast)",
+		description: "Switch theme pair (catppuccin, catppuccin-macchiato, catppuccin-frappe, everforest, high-contrast)",
 		getArgumentCompletions: (prefix: string) => {
 			const items = PAIR_NAMES.map((name) => ({ value: name, label: name }));
 			const filtered = items.filter((i) => i.value.startsWith(prefix));
