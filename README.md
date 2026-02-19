@@ -70,22 +70,22 @@ If you don't use Ghostty or tmux, that's fine — they're both optional.
 
 ## Usage
 
-Check what's active:
+Open the interactive theme picker:
 
 ```
-/theme-pair
+/theme
 ```
 
-> Theme pair: catppuccin (catppuccin-latte, light mode)
+Arrow keys to navigate, Enter to confirm, Escape to cancel. **Live preview** -- pi, Ghostty, and tmux all update as you browse.
 
-Switch pairs:
+Switch directly:
 
 ```
-/theme-pair catppuccin
-/theme-pair catppuccin-macchiato
-/theme-pair catppuccin-frappe
-/theme-pair everforest
-/theme-pair high-contrast
+/theme catppuccin
+/theme catppuccin-macchiato
+/theme catppuccin-frappe
+/theme everforest
+/theme high-contrast
 ```
 
 pi, Ghostty, and tmux all update instantly. Flip macOS appearance and all three follow within 2 seconds.
