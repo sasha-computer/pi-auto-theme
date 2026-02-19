@@ -51,8 +51,6 @@ const PAIR_STATE_FILE = `${HOME}/.pi/agent/theme-pair-state.json`;
 // Resolved paths to bundled assets (sibling of extensions/)
 const __filename = fileURLToPath(import.meta.url);
 const BUNDLED_TMUX_THEMES = resolve(dirname(__filename), "../tmux-themes");
-const BUNDLED_PI_THEMES = resolve(dirname(__filename), "../themes");
-const PI_THEMES_DIR = `${HOME}/.pi/agent/themes`;
 
 // Ghostty theme definitions -- same hex values as the pi themes
 const GHOSTTY_THEMES: Record<string, string> = {
@@ -303,31 +301,6 @@ async function installTmuxThemes(): Promise<void> {
 	}
 }
 
-async function syncPiThemes(): Promise<void> {
-	const themeNames = [
-		"catppuccin-mocha",
-		"catppuccin-latte",
-		"catppuccin-macchiato",
-		"catppuccin-frappe",
-		"everforest-dark",
-		"everforest-light",
-		"high-contrast-dark",
-		"high-contrast-light",
-	];
-
-	await mkdir(PI_THEMES_DIR, { recursive: true });
-
-	for (const name of themeNames) {
-		const src = `${BUNDLED_PI_THEMES}/${name}.json`;
-		const dst = `${PI_THEMES_DIR}/${name}.json`;
-		try {
-			await copyFile(src, dst);
-		} catch {
-			// Source file missing -- skip silently
-		}
-	}
-}
-
 async function syncTmux(themeName: string): Promise<void> {
 	const src = `${TMUX_THEMES_DIR}/${themeName}.conf`;
 	try {
@@ -367,6 +340,18 @@ async function updateGhosttyTheme(pair: ThemePair): Promise<void> {
 	}
 }
 
+// Preview only the pi theme colour while navigating the picker -- never
+// writes to Ghostty config or tmux, avoiding file corruption from rapid
+// concurrent writes during highlight changes.
+async function previewPiTheme(
+	pairName: string,
+	ctx: { ui: { setTheme: (name: string) => unknown } },
+): Promise<void> {
+	const dark = await isDarkMode();
+	const resolved = resolveTheme(pairName, dark);
+	ctx.ui.setTheme(resolved.piTheme);
+}
+
 async function applyFullTheme(
 	pairName: string,
 	ctx: { ui: { setTheme: (name: string) => unknown } },
@@ -395,7 +380,6 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
-		await syncPiThemes();
 		await installGhosttyThemes();
 		await installTmuxThemes();
 
@@ -477,9 +461,10 @@ export default function (pi: ExtensionAPI) {
 					selectList.setSelectedIndex(currentIndex);
 				}
 
-				// Live preview on highlight change
+				// Live preview on highlight change -- pi theme only, no Ghostty
+				// config write, to avoid file corruption from rapid concurrent writes
 				selectList.onSelectionChange = (item) => {
-					applyFullTheme(item.value, ctx);
+					previewPiTheme(item.value, ctx);
 				};
 
 				selectList.onSelect = (item) => done(item.value);
