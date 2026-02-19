@@ -19,21 +19,23 @@
 
 Your terminal, multiplexer, and coding agent should look like they belong together. And when you flip your Mac to dark mode at night, all three should follow without you touching anything.
 
-pi-auto-theme ships three matched palettes (Catppuccin, Everforest, High Contrast) where pi's TUI, Ghostty's terminal, and tmux use the exact same hex values. The extension polls macOS appearance and switches everything automatically.
+pi-auto-theme ships five matched palettes (four Catppuccin flavours + Everforest + High Contrast) where pi's TUI, Ghostty's terminal, and tmux use the exact same hex values. The extension polls macOS appearance and switches everything automatically.
 
 ## How does it work?
 
-- **Three theme pairs**, each with a dark and light variant
+- **Five theme pairs**, each with a dark and light variant
 - **Auto dark/light switching** by polling macOS system appearance every 2 seconds
 - **Ghostty sync** rewrites the Ghostty config and triggers a reload when you change pairs
 - **tmux sync** writes `~/.config/tmux/theme.conf` and reloads the tmux server live
-- **Custom Ghostty and tmux themes** installed automatically on first run
+- **Themes self-update** on every session start — no manual reinstall needed after updates
 
 | Pair | Dark | Light |
 |------|------|-------|
-| Catppuccin | Mocha | Latte |
-| Everforest | Dark (medium) | Light (medium) |
-| High Contrast | Pure black | Pure white |
+| `catppuccin` | Mocha | Latte |
+| `catppuccin-macchiato` | Macchiato | Latte |
+| `catppuccin-frappe` | Frappe | Latte |
+| `everforest` | Dark (medium) | Light (medium) |
+| `high-contrast` | Pure black | Pure white |
 
 ## Install
 
@@ -79,8 +81,10 @@ Check what's active:
 Switch pairs:
 
 ```
-/theme-pair everforest
 /theme-pair catppuccin
+/theme-pair catppuccin-macchiato
+/theme-pair catppuccin-frappe
+/theme-pair everforest
 /theme-pair high-contrast
 ```
 
