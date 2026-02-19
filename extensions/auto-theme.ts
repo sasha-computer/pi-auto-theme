@@ -38,9 +38,11 @@ const TMUX_THEMES_DIR = `${HOME}/.config/tmux/themes`;
 const TMUX_THEME_FILE = `${HOME}/.config/tmux/theme.conf`;
 const PAIR_STATE_FILE = `${HOME}/.pi/agent/theme-pair-state.json`;
 
-// Resolved path to bundled tmux themes (sibling of extensions/)
+// Resolved paths to bundled assets (sibling of extensions/)
 const __filename = fileURLToPath(import.meta.url);
 const BUNDLED_TMUX_THEMES = resolve(dirname(__filename), "../tmux-themes");
+const BUNDLED_PI_THEMES = resolve(dirname(__filename), "../themes");
+const PI_THEMES_DIR = `${HOME}/.pi/agent/themes`;
 
 interface ThemePair {
 	dark: string;
@@ -333,6 +335,31 @@ async function installTmuxThemes(): Promise<void> {
 	}
 }
 
+async function syncPiThemes(): Promise<void> {
+	const themeNames = [
+		"catppuccin-mocha",
+		"catppuccin-latte",
+		"catppuccin-macchiato",
+		"catppuccin-frappe",
+		"everforest-dark",
+		"everforest-light",
+		"high-contrast-dark",
+		"high-contrast-light",
+	];
+
+	await mkdir(PI_THEMES_DIR, { recursive: true });
+
+	for (const name of themeNames) {
+		const src = `${BUNDLED_PI_THEMES}/${name}.json`;
+		const dst = `${PI_THEMES_DIR}/${name}.json`;
+		try {
+			await copyFile(src, dst);
+		} catch {
+			// Source file missing — skip silently
+		}
+	}
+}
+
 async function syncTmux(themeName: string): Promise<void> {
 	const src = `${TMUX_THEMES_DIR}/${themeName}.conf`;
 	try {
@@ -396,8 +423,10 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	pi.on("session_start", async (_event, ctx) => {
-		// Install Ghostty themes if needed (idempotent, skips existing files)
+		// Sync bundled themes to installed locations (always overwrites to stay current)
+		await syncPiThemes();
 		await installGhosttyThemes();
+		await installTmuxThemes();
 
 		// Restore persisted pair from state file
 		const savedPair = await loadPersistedPair();
