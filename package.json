@@ -6,7 +6,7 @@
 	"license": "MIT",
 	"type": "module",
 	"pi": {
-		"extensions": ["extensions"],
+		"extensions": ["extensions/auto-theme.ts"],
 		"themes": ["themes"]
 	},
 	"devDependencies": {
