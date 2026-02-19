@@ -10,13 +10,13 @@
  *   - high-contrast: high-contrast-dark / high-contrast-light
  *
  * Commands:
- *   /theme          -- Open interactive theme picker with live preview
- *   /theme <name>   -- Switch theme pair directly
+ *   /theme                    -- Open interactive picker (Auto / Dark / Light sections)
+ *   /theme <pair>             -- Switch to a pair in auto mode (follows system dark/light)
+ *   /theme <individual-name>  -- Pin to a specific theme regardless of system mode
  *
- * Polls macOS appearance every 2 seconds and switches pi theme automatically.
- * Ghostty uses its native light:/dark: syntax with window-theme = auto, so it
- * auto-switches on its own -- we just update which themes are configured when
- * the pair changes.
+ * Polls macOS appearance every 2 seconds and switches pi + tmux automatically,
+ * unless a theme is pinned (forced regardless of system mode). Ghostty uses its
+ * native light:/dark: syntax in auto mode, or a single theme name when pinned.
  *
  * On first run, installs matching Ghostty themes to ~/.config/ghostty/themes/
  * so that the terminal palette matches the pi theme exactly.
@@ -33,8 +33,12 @@ import { Container, type SelectItem, SelectList, Text } from "@mariozechner/pi-t
 import {
 	THEME_PAIRS,
 	PAIR_NAMES,
+	DARK_THEMES,
+	LIGHT_THEMES,
+	PI_TO_GHOSTTY,
 	resolveTheme,
 	rewriteGhosttyConfig,
+	rewriteGhosttyConfigPinned,
 	validatePairName,
 	type ThemePair,
 } from "./theme-logic";
@@ -249,18 +253,26 @@ async function exists(path: string): Promise<boolean> {
 	}
 }
 
-async function loadPersistedPair(): Promise<string | null> {
+interface PersistedState {
+	pair: string;
+	pinned: string | null;
+}
+
+async function loadPersistedState(): Promise<PersistedState | null> {
 	try {
 		const data = JSON.parse(await readFile(PAIR_STATE_FILE, "utf-8"));
-		return data?.pair && THEME_PAIRS[data.pair] ? data.pair : null;
+		const pair = data?.pair && THEME_PAIRS[data.pair] ? data.pair : null;
+		if (!pair) return null;
+		const pinned = data?.pinned && PI_TO_GHOSTTY[data.pinned] ? data.pinned : null;
+		return { pair, pinned };
 	} catch {
 		return null;
 	}
 }
 
-async function persistPair(pair: string): Promise<void> {
+async function persistState(pair: string, pinned: string | null): Promise<void> {
 	await mkdir(dirname(PAIR_STATE_FILE), { recursive: true });
-	await writeFile(PAIR_STATE_FILE, JSON.stringify({ pair }), "utf-8");
+	await writeFile(PAIR_STATE_FILE, JSON.stringify({ pair, pinned }), "utf-8");
 }
 
 async function installGhosttyThemes(): Promise<void> {
@@ -340,23 +352,34 @@ async function updateGhosttyTheme(pair: ThemePair): Promise<void> {
 	}
 }
 
-// Preview the dark variant of a pair while navigating the picker -- never
-// writes to Ghostty config or tmux, avoiding file corruption from rapid
-// concurrent writes during highlight changes.
-//
-// Always shows the dark variant so all Catppuccin flavours are visually
-// distinct in the picker (all share catppuccin-latte as their light theme,
-// making them indistinguishable when the system is in light mode).
-function previewPiTheme(
-	pairName: string,
-	ctx: { ui: { setTheme: (name: string) => unknown } },
-): void {
-	const pair = THEME_PAIRS[pairName];
-	if (!pair) return;
-	ctx.ui.setTheme(pair.dark);
+async function updateGhosttyThemePinned(ghosttyTheme: string): Promise<void> {
+	try {
+		const config = await readFile(GHOSTTY_CONFIG, "utf-8");
+		const updated = rewriteGhosttyConfigPinned(config, ghosttyTheme);
+
+		if (updated === config) return;
+
+		await writeFile(GHOSTTY_CONFIG, updated, "utf-8");
+
+		await execAsync(
+			'osascript -e \'tell application "System Events" to tell process "Ghostty" to click menu item "Reload Configuration" of menu "Ghostty" of menu bar item "Ghostty" of menu bar 1\'',
+		).catch(() => {});
+	} catch {
+		// Config file missing or not writable -- silently skip
+	}
 }
 
-async function applyFullTheme(
+// Preview a specific theme name in the picker -- never writes to Ghostty or
+// tmux, avoiding file corruption from rapid concurrent writes.
+function previewPiTheme(
+	themeName: string,
+	ctx: { ui: { setTheme: (name: string) => unknown } },
+): void {
+	ctx.ui.setTheme(themeName);
+}
+
+// Apply a pair in auto mode: pi + Ghostty light/dark pair + tmux, following system mode.
+async function applyAutoPair(
 	pairName: string,
 	ctx: { ui: { setTheme: (name: string) => unknown } },
 ): Promise<void> {
@@ -367,19 +390,42 @@ async function applyFullTheme(
 	await syncTmux(resolved.tmuxTheme);
 }
 
+// Apply a pinned theme: forces pi + Ghostty + tmux to a specific theme
+// regardless of system dark/light mode.
+async function applyPinnedTheme(
+	themeName: string,
+	ctx: { ui: { setTheme: (name: string) => unknown } },
+): Promise<void> {
+	ctx.ui.setTheme(themeName);
+	await syncTmux(themeName);
+	const ghosttyTheme = PI_TO_GHOSTTY[themeName];
+	if (ghosttyTheme) await updateGhosttyThemePinned(ghosttyTheme);
+}
+
 export default function (pi: ExtensionAPI) {
 	let intervalId: ReturnType<typeof setInterval> | null = null;
 	let currentPair = "catppuccin";
+	let pinnedTheme: string | null = null; // if set, ignore system mode and use this theme
 	let currentAppliedTheme = "";
 
 	async function applyTheme(ctx: { ui: { setTheme: (name: string) => unknown } }) {
-		const dark = await isDarkMode();
-		const resolved = resolveTheme(currentPair, dark);
+		let piTheme: string;
+		let tmuxTheme: string;
 
-		if (resolved.piTheme !== currentAppliedTheme) {
-			currentAppliedTheme = resolved.piTheme;
-			ctx.ui.setTheme(resolved.piTheme);
-			await syncTmux(resolved.tmuxTheme);
+		if (pinnedTheme) {
+			piTheme = pinnedTheme;
+			tmuxTheme = pinnedTheme;
+		} else {
+			const dark = await isDarkMode();
+			const resolved = resolveTheme(currentPair, dark);
+			piTheme = resolved.piTheme;
+			tmuxTheme = resolved.tmuxTheme;
+		}
+
+		if (piTheme !== currentAppliedTheme) {
+			currentAppliedTheme = piTheme;
+			ctx.ui.setTheme(piTheme);
+			await syncTmux(tmuxTheme);
 		}
 	}
 
@@ -387,9 +433,10 @@ export default function (pi: ExtensionAPI) {
 		await installGhosttyThemes();
 		await installTmuxThemes();
 
-		const savedPair = await loadPersistedPair();
-		if (savedPair) {
-			currentPair = savedPair;
+		const saved = await loadPersistedState();
+		if (saved) {
+			currentPair = saved.pair;
+			pinnedTheme = saved.pinned;
 		}
 
 		await applyTheme(ctx);
@@ -409,7 +456,12 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("theme", {
 		description: "Switch theme (interactive picker or /theme <name>)",
 		getArgumentCompletions: (prefix: string) => {
-			const items = PAIR_NAMES.map((name) => ({ value: name, label: name }));
+			const allNames = [
+				...PAIR_NAMES,
+				...DARK_THEMES,
+				...LIGHT_THEMES,
+			];
+			const items = allNames.map((name) => ({ value: name, label: name }));
 			const filtered = items.filter((i) => i.value.startsWith(prefix));
 			return filtered.length > 0 ? filtered : null;
 		},
@@ -418,34 +470,54 @@ export default function (pi: ExtensionAPI) {
 
 			// Direct switch: /theme <name>
 			if (name) {
-				const result = validatePairName(name);
-				if (!result.ok) {
-					ctx.ui.notify(result.error, "error");
-					return;
+				if (THEME_PAIRS[name]) {
+					// Pair name -- switch to auto mode for this pair
+					pinnedTheme = null;
+					currentPair = name;
+					currentAppliedTheme = "";
+					await persistState(currentPair, null);
+					await applyAutoPair(name, ctx);
+					ctx.ui.notify(`Theme: ${name} (auto)`, "info");
+				} else if (PI_TO_GHOSTTY[name]) {
+					// Individual theme -- pin to it
+					pinnedTheme = name;
+					currentAppliedTheme = "";
+					await persistState(currentPair, pinnedTheme);
+					await applyPinnedTheme(name, ctx);
+					ctx.ui.notify(`Theme: ${name} (pinned)`, "info");
+				} else {
+					const available = [...PAIR_NAMES, ...DARK_THEMES, ...LIGHT_THEMES].join(", ");
+					ctx.ui.notify(`Unknown theme "${name}". Available: ${available}`, "error");
 				}
-
-				currentPair = name;
-				currentAppliedTheme = "";
-				await persistPair(currentPair);
-				await applyFullTheme(name, ctx);
-				ctx.ui.notify(`Theme: ${name}`, "info");
 				return;
 			}
 
-			// Interactive picker with live preview
+			// Interactive picker with three sections: Auto, Dark, Light
 			const previousPair = currentPair;
+			const previousPinned = pinnedTheme;
 
-			const items: SelectItem[] = PAIR_NAMES.map((pairName) => {
-				const pair = THEME_PAIRS[pairName];
-				return {
-					value: pairName,
-					label: pairName,
-					description: `${pair.dark} (dark) / ${pair.light} (light)`,
-				};
-			});
+			// Sentinel prefix for section header items (non-selectable)
+			const H = "§";
 
-			// Pre-select the current pair
-			const currentIndex = PAIR_NAMES.indexOf(currentPair);
+			const items: SelectItem[] = [
+				{ value: `${H}auto`, label: "── Auto  follows system ──────────────────────" },
+				...PAIR_NAMES.map((pairName) => {
+					const pair = THEME_PAIRS[pairName];
+					return {
+						value: `auto:${pairName}`,
+						label: pairName,
+						description: `${pair.dark} (dark) / ${pair.light} (light)`,
+					};
+				}),
+				{ value: `${H}dark`, label: "── Dark ──────────────────────────────────────" },
+				...DARK_THEMES.map((themeName) => ({ value: `pin:${themeName}`, label: themeName })),
+				{ value: `${H}light`, label: "── Light ─────────────────────────────────────" },
+				...LIGHT_THEMES.map((themeName) => ({ value: `pin:${themeName}`, label: themeName })),
+			];
+
+			// Pre-select current item
+			const currentValue = pinnedTheme ? `pin:${pinnedTheme}` : `auto:${currentPair}`;
+			const currentIndex = items.findIndex((i) => i.value === currentValue);
 
 			const selected = await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
 				const container = new Container();
@@ -453,7 +525,7 @@ export default function (pi: ExtensionAPI) {
 				container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 				container.addChild(new Text(theme.fg("accent", theme.bold("Theme")), 1, 0));
 
-				const selectList = new SelectList(items, Math.min(items.length, 10), {
+				const selectList = new SelectList(items, Math.min(items.length, 12), {
 					selectedPrefix: (t) => theme.fg("accent", t),
 					selectedText: (t) => theme.fg("accent", t),
 					description: (t) => theme.fg("muted", t),
@@ -465,13 +537,24 @@ export default function (pi: ExtensionAPI) {
 					selectList.setSelectedIndex(currentIndex);
 				}
 
-				// Live preview on highlight change -- pi theme only, no Ghostty
-				// config write, to avoid file corruption from rapid concurrent writes
+				// Live preview -- pi theme only, no Ghostty writes
 				selectList.onSelectionChange = (item) => {
-					previewPiTheme(item.value, ctx);
+					if (item.value.startsWith(H)) return; // section header, skip
+					if (item.value.startsWith("auto:")) {
+						// Preview the dark variant so Catppuccin flavours are distinguishable
+						const pairName = item.value.slice(5);
+						const pair = THEME_PAIRS[pairName];
+						if (pair) previewPiTheme(pair.dark, ctx);
+					} else if (item.value.startsWith("pin:")) {
+						previewPiTheme(item.value.slice(4), ctx);
+					}
 				};
 
-				selectList.onSelect = (item) => done(item.value);
+				// Don't close the picker when a section header is selected
+				selectList.onSelect = (item) => {
+					if (item.value.startsWith(H)) return;
+					done(item.value);
+				};
 				selectList.onCancel = () => done(null);
 				container.addChild(selectList);
 
@@ -491,17 +574,31 @@ export default function (pi: ExtensionAPI) {
 			});
 
 			if (selected) {
-				// Confirmed -- persist
-				currentPair = selected;
 				currentAppliedTheme = "";
-				await persistPair(currentPair);
-				await applyFullTheme(selected, ctx);
-				ctx.ui.notify(`Theme: ${selected}`, "info");
+				if (selected.startsWith("auto:")) {
+					const pairName = selected.slice(5);
+					pinnedTheme = null;
+					currentPair = pairName;
+					await persistState(currentPair, null);
+					await applyAutoPair(pairName, ctx);
+					ctx.ui.notify(`Theme: ${pairName} (auto)`, "info");
+				} else if (selected.startsWith("pin:")) {
+					const themeName = selected.slice(4);
+					pinnedTheme = themeName;
+					await persistState(currentPair, themeName);
+					await applyPinnedTheme(themeName, ctx);
+					ctx.ui.notify(`Theme: ${themeName} (pinned)`, "info");
+				}
 			} else {
-				// Cancelled -- revert to previous
+				// Cancelled -- revert to previous state
+				pinnedTheme = previousPinned;
 				currentPair = previousPair;
 				currentAppliedTheme = "";
-				await applyFullTheme(previousPair, ctx);
+				if (previousPinned) {
+					await applyPinnedTheme(previousPinned, ctx);
+				} else {
+					await applyAutoPair(previousPair, ctx);
+				}
 			}
 		},
 	});
