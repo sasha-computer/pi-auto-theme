@@ -440,7 +440,7 @@ export default function (pi: ExtensionAPI) {
 				return {
 					value: pairName,
 					label: pairName,
-					description: `${pair.dark} / ${pair.light}`,
+					description: `${pair.dark} (dark) / ${pair.light} (light)`,
 				};
 			});
 
