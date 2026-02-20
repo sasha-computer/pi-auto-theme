@@ -1,7 +1,7 @@
 {
 	"name": "pi-auto-theme",
 	"version": "1.0.0",
-	"description": "Auto-switching themes for pi, Ghostty, and tmux — Catppuccin, Everforest, High Contrast",
+	"description": "Matched themes for pi, Ghostty, and tmux -- Catppuccin, Everforest, High Contrast",
 	"keywords": ["pi-package"],
 	"license": "MIT",
 	"type": "module",

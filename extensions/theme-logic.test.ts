@@ -1,71 +1,20 @@
 import { describe, it, expect } from "bun:test";
 import {
-	PAIR_NAMES,
+	ALL_THEMES,
 	DARK_THEMES,
 	LIGHT_THEMES,
 	PI_TO_GHOSTTY,
-	THEME_PAIRS,
-	validatePairName,
-	resolveTheme,
+	isValidTheme,
 	rewriteGhosttyConfig,
-	rewriteGhosttyConfigPinned,
 } from "./theme-logic";
 
-describe("PAIR_NAMES", () => {
-	it("contains all five theme pair names", () => {
-		expect(PAIR_NAMES).toEqual([
-			"catppuccin",
-			"catppuccin-macchiato",
-			"catppuccin-frappe",
-			"everforest",
-			"high-contrast",
-		]);
-	});
-});
-
-describe("validatePairName", () => {
-	it("returns the pair for valid names", () => {
-		const result = validatePairName("catppuccin");
-		expect(result).toEqual({
-			ok: true,
-			pair: expect.objectContaining({ dark: "catppuccin-mocha", light: "catppuccin-latte" }),
-		});
+describe("ALL_THEMES", () => {
+	it("contains all eight themes", () => {
+		expect(ALL_THEMES).toHaveLength(8);
 	});
 
-	it("returns an error for invalid names", () => {
-		const result = validatePairName("nonexistent");
-		expect(result).toEqual({
-			ok: false,
-			error: expect.stringContaining("nonexistent"),
-		});
-	});
-});
-
-describe("resolveTheme", () => {
-	it("returns the dark pi theme when isDark is true", () => {
-		const result = resolveTheme("catppuccin", true);
-		expect(result.piTheme).toBe("catppuccin-mocha");
-	});
-
-	it("returns the light pi theme when isDark is false", () => {
-		const result = resolveTheme("catppuccin", false);
-		expect(result.piTheme).toBe("catppuccin-latte");
-	});
-
-	it("returns correct Ghostty theme names", () => {
-		const result = resolveTheme("everforest", true);
-		expect(result.ghosttyDark).toBe("Everforest Dark");
-		expect(result.ghosttyLight).toBe("Everforest Light");
-	});
-
-	it("returns correct tmux theme name for dark mode", () => {
-		const result = resolveTheme("catppuccin", true);
-		expect(result.tmuxTheme).toBe("catppuccin-mocha");
-	});
-
-	it("returns correct tmux theme name for light mode", () => {
-		const result = resolveTheme("everforest", false);
-		expect(result.tmuxTheme).toBe("everforest-light");
+	it("contains no duplicates", () => {
+		expect(new Set(ALL_THEMES).size).toBe(ALL_THEMES.length);
 	});
 });
 
@@ -79,20 +28,34 @@ describe("DARK_THEMES / LIGHT_THEMES", () => {
 	});
 
 	it("no theme appears in both dark and light", () => {
-		const overlap = DARK_THEMES.filter((t) => (LIGHT_THEMES as readonly string[]).includes(t));
+		const overlap = DARK_THEMES.filter((t) => LIGHT_THEMES.includes(t));
 		expect(overlap).toEqual([]);
+	});
+
+	it("dark + light covers all themes", () => {
+		const combined = [...DARK_THEMES, ...LIGHT_THEMES].sort();
+		const all = [...ALL_THEMES].sort();
+		expect(combined).toEqual(all);
+	});
+});
+
+describe("isValidTheme", () => {
+	it("returns true for valid theme names", () => {
+		expect(isValidTheme("catppuccin-mocha")).toBe(true);
+		expect(isValidTheme("everforest-light")).toBe(true);
+		expect(isValidTheme("high-contrast-dark")).toBe(true);
+	});
+
+	it("returns false for invalid names", () => {
+		expect(isValidTheme("nonexistent")).toBe(false);
+		expect(isValidTheme("catppuccin")).toBe(false);
+		expect(isValidTheme("")).toBe(false);
 	});
 });
 
 describe("PI_TO_GHOSTTY", () => {
-	it("covers every dark theme", () => {
-		for (const name of DARK_THEMES) {
-			expect(PI_TO_GHOSTTY[name]).toBeTruthy();
-		}
-	});
-
-	it("covers every light theme", () => {
-		for (const name of LIGHT_THEMES) {
+	it("covers every theme", () => {
+		for (const name of ALL_THEMES) {
 			expect(PI_TO_GHOSTTY[name]).toBeTruthy();
 		}
 	});
@@ -106,47 +69,38 @@ describe("PI_TO_GHOSTTY", () => {
 	});
 });
 
-describe("rewriteGhosttyConfigPinned", () => {
-	it("replaces a theme line with a single pinned theme", () => {
+describe("rewriteGhosttyConfig", () => {
+	it("replaces a theme line with the new theme", () => {
+		const config = `font-size = 14\ntheme = Catppuccin Mocha\nwindow-theme = auto\n`;
+		const result = rewriteGhosttyConfig(config, "Everforest Dark");
+		expect(result).toContain("theme = Everforest Dark");
+		expect(result).toContain("font-size = 14");
+		expect(result).toContain("window-theme = auto");
+	});
+
+	it("replaces a light/dark theme line", () => {
 		const config = `font-size = 14\ntheme = light:Old Light,dark:Old Dark\nwindow-theme = auto\n`;
-		const result = rewriteGhosttyConfigPinned(config, "Catppuccin Mocha Sync");
-		expect(result).toContain("theme = Catppuccin Mocha Sync");
+		const result = rewriteGhosttyConfig(config, "High Contrast Dark");
+		expect(result).toContain("theme = High Contrast Dark");
 		expect(result).not.toContain("light:");
-		expect(result).not.toContain("dark:");
 	});
 
 	it("preserves surrounding config lines", () => {
 		const config = `font-size = 14\ntheme = Everforest Dark\nwindow-theme = auto\n`;
-		const result = rewriteGhosttyConfigPinned(config, "High Contrast Dark");
+		const result = rewriteGhosttyConfig(config, "High Contrast Light");
 		expect(result).toContain("font-size = 14");
 		expect(result).toContain("window-theme = auto");
 	});
 
 	it("returns config unchanged when no theme line exists", () => {
 		const config = `font-size = 14\nwindow-theme = auto\n`;
-		const result = rewriteGhosttyConfigPinned(config, "Catppuccin Mocha Sync");
+		const result = rewriteGhosttyConfig(config, "Catppuccin Mocha Sync");
 		expect(result).toBe(config);
 	});
-});
 
-describe("rewriteGhosttyConfig", () => {
-	it("replaces a simple theme line with light/dark syntax", () => {
-		const config = `font-size = 14\ntheme = Catppuccin Mocha\nwindow-theme = auto\n`;
-		const result = rewriteGhosttyConfig(config, THEME_PAIRS["everforest"]);
-		expect(result).toContain("theme = light:Everforest Light,dark:Everforest Dark");
-		expect(result).toContain("font-size = 14");
-		expect(result).toContain("window-theme = auto");
-	});
-
-	it("replaces an existing light/dark theme line", () => {
-		const config = `font-size = 14\ntheme = light:Old Light,dark:Old Dark\nwindow-theme = auto\n`;
-		const result = rewriteGhosttyConfig(config, THEME_PAIRS["high-contrast"]);
-		expect(result).toContain("theme = light:High Contrast Light,dark:High Contrast Dark");
-	});
-
-	it("returns config unchanged when no theme line exists", () => {
-		const config = `font-size = 14\nwindow-theme = auto\n`;
-		const result = rewriteGhosttyConfig(config, THEME_PAIRS["catppuccin"]);
+	it("returns config unchanged when theme already matches", () => {
+		const config = `font-size = 14\ntheme = Everforest Dark\nwindow-theme = auto\n`;
+		const result = rewriteGhosttyConfig(config, "Everforest Dark");
 		expect(result).toBe(config);
 	});
 });

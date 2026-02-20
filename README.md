@@ -5,7 +5,7 @@
 <h1 align="center">pi-auto-theme</h1>
 
 <p align="center">
-  Auto-switching themes for pi, Ghostty, and tmux that follow your system appearance.
+  Matched themes for pi, Ghostty, and tmux. Pick once, everything syncs.
 </p>
 
 <p align="center">
@@ -17,25 +17,25 @@
 
 ## Why pi-auto-theme?
 
-Your terminal, multiplexer, and coding agent should look like they belong together. And when you flip your Mac to dark mode at night, all three should follow without you touching anything.
+Your terminal, multiplexer, and coding agent should look like they belong together. pi-auto-theme ships eight matched palettes where pi's TUI, Ghostty's terminal, and tmux use the exact same hex values.
 
-pi-auto-theme ships five matched palettes (four Catppuccin flavours + Everforest + High Contrast) where pi's TUI, Ghostty's terminal, and tmux use the exact same hex values. The extension polls macOS appearance and switches everything automatically.
+Pick a theme with `/theme` and it sticks -- across reloads, restarts, everything.
 
 ## How does it work?
 
-- **Five theme pairs**, each with a dark and light variant
-- **Auto dark/light switching** by polling macOS system appearance every 2 seconds
-- **Ghostty sync** rewrites the Ghostty config and triggers a reload when you change pairs
-- **tmux sync** writes `~/.config/tmux/theme.conf` and reloads the tmux server live
-- **Themes self-update** on every session start — no manual reinstall needed after updates
+- **Eight themes** -- four Catppuccin flavours, Everforest dark/light, High Contrast dark/light
+- **Ghostty sync** -- rewrites the Ghostty config and triggers a reload when you switch themes
+- **tmux sync** -- writes `~/.config/tmux/theme.conf` and reloads tmux live
+- **Reload-safe** -- theme is stored in `settings.json`, so `/reload` never causes a flash
+- **Themes self-update** on every session start
 
-| Pair | Dark | Light |
-|------|------|-------|
-| `catppuccin` | Mocha | Latte |
-| `catppuccin-macchiato` | Macchiato | Latte |
-| `catppuccin-frappe` | Frappe | Latte |
-| `everforest` | Dark (medium) | Light (medium) |
-| `high-contrast` | Pure black | Pure white |
+| Dark | Light |
+|------|-------|
+| `catppuccin-mocha` | `catppuccin-latte` |
+| `catppuccin-macchiato` | |
+| `catppuccin-frappe` | |
+| `everforest-dark` | `everforest-light` |
+| `high-contrast-dark` | `high-contrast-light` |
 
 ## Install
 
@@ -51,14 +51,14 @@ pi -e git:github.com/sasha-computer/pi-auto-theme
 
 ## Setup
 
-**Ghostty** — your `~/.config/ghostty/config` needs two lines:
+**Ghostty** -- your `~/.config/ghostty/config` needs a theme line:
 
 ```
-theme = light:Catppuccin Latte Sync,dark:Catppuccin Mocha Sync
+theme = Catppuccin Mocha Sync
 window-theme = auto
 ```
 
-**tmux** — your `~/.tmux.conf` needs to source the generated theme file:
+**tmux** -- your `~/.tmux.conf` needs to source the generated theme file:
 
 ```
 source-file ~/.config/tmux/theme.conf
@@ -66,7 +66,7 @@ source-file ~/.config/tmux/theme.conf
 
 Both Ghostty and tmux theme files are installed automatically on first run. No manual palette setup.
 
-If you don't use Ghostty or tmux, that's fine — they're both optional.
+If you don't use Ghostty or tmux, that's fine -- they're both optional.
 
 ## Usage
 
@@ -76,19 +76,17 @@ Open the interactive theme picker:
 /theme
 ```
 
-Arrow keys to navigate, Enter to confirm, Escape to cancel. **Live preview** -- pi, Ghostty, and tmux all update as you browse.
+Arrow keys to navigate, Enter to confirm, Escape to cancel. Live preview as you browse.
 
 Switch directly:
 
 ```
-/theme catppuccin
-/theme catppuccin-macchiato
-/theme catppuccin-frappe
-/theme everforest
-/theme high-contrast
+/theme catppuccin-mocha
+/theme everforest-dark
+/theme high-contrast-light
 ```
 
-pi, Ghostty, and tmux all update instantly. Flip macOS appearance and all three follow within 2 seconds.
+pi, Ghostty, and tmux all update instantly.
 
 ## Palettes
 
@@ -100,7 +98,6 @@ Colors sourced from official repos:
 
 ## Requirements
 
-- macOS (uses `osascript` for appearance detection)
 - [pi](https://github.com/badlogic/pi-mono)
 - [Ghostty](https://ghostty.org) (optional)
 - [tmux](https://github.com/tmux/tmux) (optional)
